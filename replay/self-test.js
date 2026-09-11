@@ -7,10 +7,15 @@
  * clicks (record.js), then verify that fixture still resolves identically
  * through the host hooks (replay.js). No external app, no human clicking.
  *
- * It finishes by replaying fixtures/negative-controls.json, which asserts the
- * grading rules still REJECT what they should. Without that step every entry
- * under test is a pass case, and a grader that had gone too permissive would
- * report green.
+ * It then replays fixtures/negative-controls.json, which asserts the grading
+ * rules still REJECT what they should. Without that step every entry under
+ * test is a pass case, and a grader that had gone too permissive would report
+ * green.
+ *
+ * Finally it runs replay/capture-check.js, which proves a click on the mesh
+ * does not start a host drag. That is the failure that killed the first live
+ * batch against a real app: the host's own move tool took the pointerdown and
+ * the harness graded nothing.
  *
  * The server has to cover the repo ROOT, not just demo/ — demo/index.html
  * imports ../src/*.js, which is outside the demo folder.
@@ -29,6 +34,7 @@ const PORT = Number(process.env.PORT || 5174);
 const APP_URL = process.env.APP_URL || `http://localhost:${PORT}/demo/`;
 const FIXTURE = process.argv[2] || 'fixtures/self-test.json';
 const NEGATIVE_FIXTURE = 'fixtures/negative-controls.json';
+const CAPTURE_CHECK_URL = new URL('capture-check.html', APP_URL.endsWith('/') ? APP_URL : `${APP_URL}/`).href;
 const EXTERNAL_SERVER = Boolean(process.env.APP_URL);
 
 function run(cmd, args, extraEnv = {}) {
@@ -75,6 +81,8 @@ async function main() {
     await run(process.execPath, ['replay/replay.js', FIXTURE], { APP_URL });
     console.log('\n--- negative controls: checking the grader still rejects bad picks ---');
     await run(process.execPath, ['replay/replay.js', NEGATIVE_FIXTURE], { APP_URL });
+    console.log('\n--- pointer capture: a click on the mesh must not start a host drag ---');
+    await run(process.execPath, ['replay/capture-check.js'], { APP_URL: CAPTURE_CHECK_URL });
     console.log('\nSelf-test passed.');
   } finally {
     stop();

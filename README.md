@@ -13,6 +13,9 @@ something regresses.
 src/harness.js           -- engine-agnostic core. Knows nothing about Three.js.
 src/grade.js             -- the one grading rule, shared by harness + replay.
 src/three-adapter.js     -- implements the "host contract" for Three.js apps.
+src/pointer-capture.js   -- takes one click back from a host's own drag tooling.
+src/overlay.js           -- the live pass/fail panel (shadow DOM, host-agnostic).
+src/cth-live.js          -- one call that wires all of the above into a real app.
 src/issue-button.js      -- Tier 1: prefilled GitHub issue URL, no token needed.
 replay/record.js         -- drives a page with real clicks to produce a fixture.
 replay/replay.js         -- Tier 2: headless CI replay via Playwright.
@@ -146,6 +149,69 @@ If step 1 can't complete every test, or step 2 finds a mismatch, the bug is
 in `src/harness.js` or `src/three-adapter.js` — this workflow is what
 protects those two files, independent of whatever app you've wired the
 harness into elsewhere.
+
+## Running a live batch inside a real app
+
+The demo drives itself. A live batch is different: a person aims at features of
+a real model in the real app, and needs to see pass/fail per aim as they go.
+
+**Integration is one import and one call.** It is inert unless the URL carries
+the flag, so shipping the call costs the normal app nothing:
+
+```js
+import { mountLiveHarness } from '<path>/click-test/src/cth-live.js';
+import { MY_AIMS } from '<path>/click-test/specs/my-aims.js';
+
+mountLiveHarness({ THREE, scene, camera, renderer, raycastables, tests: MY_AIMS });
+// inert on the normal URL; active on ?cth=1
+```
+
+`raycastables` is the array of pickable `Object3D`s, each with `.name` set to
+the id used in a spec's `accept.objectId`. Nothing else about the host changes.
+
+### Arm, then click — and why
+
+A host that moves the model on `pointerdown` will eat the pick before the
+harness ever grades it: the model slides, the pointer travels past the drag
+threshold, and the gesture is discarded as a drag. The symptom is a host status
+like "Moved model #1" with zero face hits.
+
+So live batches run in `pointerMode: 'capture'`, which listens in the **capture
+phase on `window`** — strictly ahead of any listener on the canvas, whatever
+order they were registered in — and calls `stopImmediatePropagation()`. The
+host's handler never runs.
+
+That is armed **per pick**, not permanently, because the tester still needs to
+orbit and tip the part between aims. Press **Arm pick**, click once, and the
+harness takes exactly that one gesture; everything before and after is the
+host's as usual. An armed gesture that moves too far is reported as an ignored
+drag rather than graded.
+
+`replay/capture-check.js` proves this against a host that deliberately steals
+pointerdown: unarmed the model slides and nothing is graded (so the check is
+testing something real), armed the model does not move and the pick grades.
+
+### Aim-by-eye specs
+
+A live spec usually has no `target`: the tester aims at a described feature
+rather than a rendered marker, which avoids needing local normals and
+half-extents for the real geometry. Only `accept` is needed to grade. See
+`specs/nest-plate-first-batch.js`.
+
+### Testing the flag locally
+
+`npm run demo` uses `serve`, whose `cleanUrls` 301-redirects `/x.html` to `/x`
+**and drops the query string** — so `?cth=1` silently vanishes and the overlay
+never mounts. Use the extensionless URL locally:
+
+```
+http://localhost:5174/demo/live-overlay?cth=1      # works
+http://localhost:5174/demo/live-overlay.html?cth=1 # query lost to the redirect
+```
+
+GitHub Pages serves `.html` directly and keeps the query, so a deployed
+`?cth=1` URL is unaffected. (Setting `cleanUrls:false` in a `serve.json` fixes
+the redirect but breaks directory-index resolution, so it is not worth it.)
 
 ## Known limitations
 
