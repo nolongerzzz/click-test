@@ -64,6 +64,9 @@ async function main() {
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForFunction('window.__CTH_HOST__ != null', null, { timeout: 15000 });
 
+  // See record.js — surface a silent CDN fallback rather than hiding it.
+  console.log(`three loaded from: ${await page.evaluate(() => window.__CTH_THREE_SOURCE__ || 'unknown')}`);
+
   const outcomes = [];
 
   for (const original of fixture.results) {

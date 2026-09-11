@@ -92,9 +92,11 @@
 let THREE;
 try {
   THREE = await import('three');
+  window.__CTH_THREE_SOURCE__ = 'cdn';
 } catch (err) {
   console.warn('three unavailable from the CDN, falling back to node_modules:', err.message);
   THREE = await import('../node_modules/three/build/three.module.js');
+  window.__CTH_THREE_SOURCE__ = 'node_modules';
 }
 import { createClickTestHarness } from '../src/harness.js';
 import { createThreeHostAdapter } from '../src/three-adapter.js';

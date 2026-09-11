@@ -55,6 +55,12 @@ async function main() {
   await page.goto(APP_URL, { waitUntil: 'networkidle' });
   await page.waitForFunction('window.__CTH_HOST__ != null && window.__CTH_HARNESS__ != null', null, { timeout: 15000 });
 
+  // Report where three actually came from. The CDN fallback is otherwise
+  // silent, so a CI run could be quietly exercising node_modules while
+  // everyone assumes the import map is working.
+  const threeSource = await page.evaluate(() => window.__CTH_THREE_SOURCE__ || 'unknown');
+  console.log(`three loaded from: ${threeSource}`);
+
   const total = await page.evaluate(() => window.__CTH_HARNESS__.totalTests);
   let guard = 0;
 
