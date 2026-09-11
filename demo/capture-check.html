@@ -80,6 +80,8 @@ const harness = createClickTestHarness({
   tests: [
     { id: 'hull-face-a', title: 'Hull face A', accept: { objectId: 'box_hull' } },
     { id: 'hull-face-b', title: 'Hull face B', accept: { objectId: 'box_hull' } },
+    { id: 'hull-face-c', title: 'Hull face C', accept: { objectId: 'box_hull' } },
+    { id: 'hull-face-d', title: 'Hull face D', accept: { objectId: 'box_hull' } },
   ],
   onResult: (entry) => results.push(entry),
   onDragIgnored: () => { dragsIgnored++; },

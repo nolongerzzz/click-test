@@ -5,7 +5,7 @@
  * Proves the fix for the live-batch failure: a click on the mesh must not
  * start the host's model move, and must reach the harness as a pick.
  *
- * Runs two gestures against demo/capture-check.html, whose host deliberately
+ * Runs six gestures against demo/capture-check.html, whose host deliberately
  * starts a drag on pointerdown over the canvas (registered BEFORE the harness,
  * the worst case):
  *
@@ -15,6 +15,13 @@
  *                   something.
  *   2. ARMED      — the host must NOT move, and the harness must record a
  *                   graded pick.
+ *   3. RELEASED   — host input is back, so orbiting between aims still works.
+ *   4. ARMED DRAG — a long drag must not be graded as a pick.
+ *   5. 4px JITTER — sub-threshold movement must STILL count as a click; a human
+ *                   clicking a real model does not hold the mouse perfectly
+ *                   still, so "0px = click" is not good enough.
+ *   6. 16px TRAVEL— over the threshold must be a drag, so the boundary is real
+ *                   in both directions rather than "everything is a click".
  *
  * Usage: APP_URL=http://localhost:5174/demo/capture-check.html node replay/capture-check.js
  */
@@ -99,6 +106,45 @@ async function main() {
   check('host still locked out during an armed drag', afterDrag.moves, movesBeforeDrag);
   check('armed drag was not graded as a pick', afterDrag.results, 1);
   check('armed drag was reported as an ignored drag', afterDrag.dragsIgnored, 1);
+
+  // --- 5. The click/drag boundary itself: sub-threshold jitter is still a click.
+  // A human clicking a real model rarely holds the mouse perfectly still, so
+  // "sub-6px = click" has to hold, not just "0px = click".
+  console.log('\n--- gesture 5: armed, 4px of jitter (sub-6px must still count as a click) ---');
+  await page.evaluate(() => window.__CHECK__.armOnce());
+  const beforeJitter = await page.evaluate(() => ({
+    moves: window.__CHECK__.moveCount(), results: window.__CHECK__.results().length,
+  }));
+  await page.mouse.move(centre.x, centre.y);
+  await page.mouse.down();
+  await page.mouse.move(centre.x + 2, centre.y + 2, { steps: 3 }); // Manhattan 4, under 6
+  await page.mouse.up();
+  await page.waitForTimeout(120);
+  const afterJitter = await page.evaluate(() => ({
+    moves: window.__CHECK__.moveCount(),
+    results: window.__CHECK__.results(),
+    dragsIgnored: window.__CHECK__.dragsIgnored(),
+  }));
+  check('4px jitter still graded as a click', afterJitter.results.length, beforeJitter.results + 1);
+  check('4px jitter graded pass', afterJitter.results[afterJitter.results.length - 1].result, 'pass');
+  check('4px jitter was not counted as a drag', afterJitter.dragsIgnored, 1);
+  check('host stayed locked out through the jitter', afterJitter.moves, beforeJitter.moves);
+
+  // --- 6. Just over the threshold is a drag, so the boundary is real in both
+  // directions and not simply "everything is a click".
+  console.log('\n--- gesture 6: armed, 16px of travel (over 6px must be a drag) ---');
+  await page.evaluate(() => window.__CHECK__.armOnce());
+  const beforeReal = await page.evaluate(() => window.__CHECK__.results().length);
+  await page.mouse.move(centre.x, centre.y);
+  await page.mouse.down();
+  await page.mouse.move(centre.x + 8, centre.y + 8, { steps: 4 }); // Manhattan 16, over 6
+  await page.mouse.up();
+  await page.waitForTimeout(120);
+  const afterReal = await page.evaluate(() => ({
+    results: window.__CHECK__.results().length, dragsIgnored: window.__CHECK__.dragsIgnored(),
+  }));
+  check('16px travel was not graded as a click', afterReal.results, beforeReal);
+  check('16px travel was reported as a drag', afterReal.dragsIgnored, 2);
 
   await browser.close();
 
