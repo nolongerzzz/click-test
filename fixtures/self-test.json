@@ -1,0 +1,373 @@
+{
+  "generatedAt": "2026-09-11T08:32:08.910Z",
+  "summary": {
+    "pass": 7,
+    "fail": 0,
+    "miss": 0,
+    "skipped": 0
+  },
+  "results": [
+    {
+      "testId": "top-face",
+      "title": "Pick a face straight on",
+      "reactionMs": 711,
+      "camera": {
+        "position": {
+          "x": 4.165,
+          "y": 4.182,
+          "z": 4.165
+        },
+        "quaternion": {
+          "x": -0.2601,
+          "y": 0.3672,
+          "z": 0.1077,
+          "w": 0.8865
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 423,
+        "yPix": 163,
+        "xNDC": -0.1373,
+        "yNDC": 0.5219,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "hit": {
+        "objectId": "cubeA",
+        "point": {
+          "x": -2.3643,
+          "y": 1,
+          "z": -1.3381
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "distance": 9.1128
+      },
+      "expected": {
+        "objectId": "cubeA",
+        "normals": [
+          [
+            0,
+            1,
+            0
+          ]
+        ]
+      },
+      "result": "pass"
+    },
+    {
+      "testId": "shallow-face",
+      "title": "Pick a face at a shallow angle",
+      "reactionMs": 888,
+      "camera": {
+        "position": {
+          "x": 3.372,
+          "y": 4.551,
+          "z": 4.516
+        },
+        "quaternion": {
+          "x": -0.2962,
+          "y": 0.2995,
+          "z": 0.0984,
+          "w": 0.9016
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 354,
+        "yPix": 228,
+        "xNDC": -0.2784,
+        "yNDC": 0.3321,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "hit": {
+        "objectId": "cubeA",
+        "point": {
+          "x": -2.2871,
+          "y": 0.4367,
+          "z": -0.7
+        },
+        "normal": {
+          "x": 0,
+          "y": 0,
+          "z": 1
+        },
+        "distance": 8.7273
+      },
+      "expected": {
+        "objectId": "cubeA",
+        "normals": [
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "result": "pass"
+    },
+    {
+      "testId": "edge-pick",
+      "title": "Pick right on an edge",
+      "reactionMs": 849,
+      "camera": {
+        "position": {
+          "x": 3.988,
+          "y": 4.276,
+          "z": 4.252
+        },
+        "quaternion": {
+          "x": -0.2689,
+          "y": 0.3521,
+          "z": 0.1064,
+          "w": 0.8901
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 374,
+        "yPix": 178,
+        "xNDC": -0.2363,
+        "yNDC": 0.4781,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "hit": {
+        "objectId": "cubeA",
+        "point": {
+          "x": -2.3087,
+          "y": 1,
+          "z": -0.7291
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "distance": 8.6709
+      },
+      "expected": {
+        "objectId": "cubeA",
+        "normals": [
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            0,
+            0,
+            1
+          ]
+        ]
+      },
+      "result": "pass"
+    },
+    {
+      "testId": "occluded-pick",
+      "title": "Pick through an overlap",
+      "reactionMs": 860,
+      "camera": {
+        "position": {
+          "x": 3.361,
+          "y": 4.729,
+          "z": 4.354
+        },
+        "quaternion": {
+          "x": -0.3097,
+          "y": 0.305,
+          "z": 0.1056,
+          "w": 0.8943
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 451,
+        "yPix": 447,
+        "xNDC": -0.0803,
+        "yNDC": -0.3104,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "hit": {
+        "objectId": "cubeB_front",
+        "point": {
+          "x": 0.6998,
+          "y": 0.65,
+          "z": 1.35
+        },
+        "normal": {
+          "x": 0,
+          "y": 0,
+          "z": 1
+        },
+        "distance": 5.7227
+      },
+      "expected": {
+        "objectId": "cubeB_front"
+      },
+      "result": "pass"
+    },
+    {
+      "testId": "thin-feature",
+      "title": "Pick a thin feature",
+      "reactionMs": 836,
+      "camera": {
+        "position": {
+          "x": 3.883,
+          "y": 4.946,
+          "z": 3.642
+        },
+        "quaternion": {
+          "x": -0.3176,
+          "y": 0.3729,
+          "z": 0.1375,
+          "w": 0.8609
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 198,
+        "yPix": 350,
+        "xNDC": -0.596,
+        "yNDC": -0.0257,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "hit": {
+        "objectId": "thinBar",
+        "point": {
+          "x": -1.8965,
+          "y": 0.15,
+          "z": 1.7688
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "distance": 7.7398
+      },
+      "expected": {
+        "objectId": "thinBar"
+      },
+      "result": "pass"
+    },
+    {
+      "testId": "placement",
+      "title": "Place a point on open plate",
+      "reactionMs": 845,
+      "camera": {
+        "position": {
+          "x": 3.585,
+          "y": 4.551,
+          "z": 4.349
+        },
+        "quaternion": {
+          "x": -0.2937,
+          "y": 0.321,
+          "z": 0.1055,
+          "w": 0.8942
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 484,
+        "yPix": 632,
+        "xNDC": -0.0122,
+        "yNDC": -0.8532,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "hit": {
+        "objectId": "plate",
+        "point": {
+          "x": 1.5913,
+          "y": 0,
+          "z": 1.9897
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "distance": 5.5005
+      },
+      "expected": {
+        "objectId": "plate"
+      },
+      "result": "pass"
+    },
+    {
+      "testId": "rotated-face",
+      "title": "Pick a face after rotation",
+      "reactionMs": 832,
+      "camera": {
+        "position": {
+          "x": 3.678,
+          "y": 4.988,
+          "z": 3.798
+        },
+        "quaternion": {
+          "x": -0.3243,
+          "y": 0.3516,
+          "z": 0.1313,
+          "w": 0.8683
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 685,
+        "yPix": 408,
+        "xNDC": 0.3987,
+        "yNDC": -0.1973,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "hit": {
+        "objectId": "rotatedCube",
+        "point": {
+          "x": 1.5875,
+          "y": 0.2691,
+          "z": -0.6054
+        },
+        "normal": {
+          "x": -1,
+          "y": 0,
+          "z": 0
+        },
+        "distance": 6.7842
+      },
+      "expected": {
+        "objectId": "rotatedCube",
+        "normals": [
+          [
+            -1,
+            0,
+            0
+          ]
+        ]
+      },
+      "result": "pass"
+    }
+  ]
+}

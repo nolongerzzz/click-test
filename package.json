@@ -1,0 +1,28 @@
+{
+  "name": "click-test-harness",
+  "version": "0.1.0",
+  "description": "Config-driven click/raycast test harness for 3D web apps, with interactive + headless CI replay and GitHub issue auto-filing.",
+  "type": "module",
+  "main": "src/harness.js",
+  "exports": {
+    ".": "./src/harness.js",
+    "./three-adapter": "./src/three-adapter.js",
+    "./issue-button": "./src/issue-button.js"
+  },
+  "scripts": {
+    "demo": "serve . -l 5174",
+    "record": "node replay/record.js",
+    "replay": "node replay/replay.js",
+    "self-test": "node replay/self-test.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "playwright": "^1.47.0",
+    "serve": "^14.2.0",
+    "three": "0.160.0",
+    "wait-on": "^7.2.0"
+  },
+  "peerDependencies": {
+    "three": ">=0.150.0"
+  }
+}

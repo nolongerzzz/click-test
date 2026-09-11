@@ -1,0 +1,45 @@
+name: self-test
+
+# Runs the harness against its own demo scene. No external app, no human
+# clicking — record.js drives the demo with real simulated clicks, then
+# replay.js verifies those same clicks still resolve identically. A failure
+# here means src/harness.js or src/three-adapter.js regressed, not your app.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Starts its own static server on the repo ROOT (demo/index.html imports
+      # ../src/*.js, so serving demo/ alone 404s), records a fixture by driving
+      # the demo with real clicks, replays it, then shuts the server down.
+      - name: Record and replay the demo
+        run: npm run self-test
+
+      - name: Upload the recorded fixture
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-test-fixture
+          path: fixtures/self-test.json
+          if-no-files-found: ignore

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Click Test Harness — Demo</title>
+<style>
+  :root{
+    --bg:#101317; --panel:#191d22; --panel-2:#1f242b; --line:#2a3037;
+    --text:#e7e5e1; --text-dim:#9aa1a8; --accent:#e8a33d;
+    --pass:#5fa779; --fail:#d2694f; --miss:#8a8f96;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:var(--bg); color:var(--text); font-family:var(--sans); overflow:hidden; }
+  #app{ display:flex; flex-direction:column; height:100%; }
+  header{ padding:14px 16px 10px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:baseline; }
+  header h1{ font-size:15px; margin:0; font-weight:600; }
+  .progress{ font-size:12px; color:var(--text-dim); font-family:var(--mono); }
+  #instruction{ padding:12px 16px; background:var(--panel); border-bottom:1px solid var(--line); font-size:14px; line-height:1.4; }
+  #instruction b{ color:var(--accent); }
+  #main{ flex:1; display:flex; min-height:0; }
+  #viewport{ flex:1; position:relative; touch-action:none; }
+  #viewport canvas{ display:block; width:100%; height:100%; }
+  #hint{ position:absolute; bottom:10px; left:10px; font-size:11px; color:var(--text-dim); font-family:var(--mono); }
+  #log{ width:300px; flex-shrink:0; background:var(--panel); border-left:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  #log h2{ font-size:12px; margin:0; padding:10px 12px; border-bottom:1px solid var(--line); color:var(--text-dim); font-weight:600; }
+  #logList{ flex:1; overflow-y:auto; padding:6px 0; }
+  .logRow{ padding:8px 12px; border-bottom:1px solid var(--line); font-size:12px; font-family:var(--mono); display:flex; flex-direction:column; gap:4px; }
+  .logRow .top{ display:flex; justify-content:space-between; }
+  .badge{ font-weight:600; }
+  .badge.pass{ color:var(--pass); } .badge.fail{ color:var(--fail); } .badge.miss{ color:var(--miss); } .badge.skipped{ color:var(--text-dim); }
+  .logRow button{ align-self:flex-start; margin-top:2px; }
+  footer{ border-top:1px solid var(--line); background:var(--panel-2); padding:10px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button{ background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:var(--sans); }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#161616; border-color:var(--accent); font-weight:600; }
+  button:disabled{ opacity:0.4; cursor:default; }
+  #summary{ font-size:12px; color:var(--text-dim); font-family:var(--mono); margin-left:auto; }
+  #exportPane{ display:none; position:absolute; inset:0; background:rgba(10,11,13,0.92); z-index:10; padding:24px; overflow-y:auto; }
+  #exportPane.open{ display:block; }
+  #exportPane textarea{ width:100%; height:55%; background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:12px; font-family:var(--mono); font-size:11px; }
+  #exportPane h2{ font-size:15px; margin:0 0 8px; }
+  #exportPane p{ color:var(--text-dim); font-size:13px; max-width:560px; line-height:1.5; }
+  #exportPane .row{ display:flex; gap:10px; margin:12px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Click Test Harness — demo</h1>
+    <div class="progress" id="progress"></div>
+  </header>
+  <div id="instruction"></div>
+  <div id="main">
+    <div id="viewport">
+      <div id="hint">Drag to orbit · scroll to zoom · tap the marker to answer</div>
+      <div id="exportPane">
+        <h2>Exported results</h2>
+        <p>Save this as a fixture (e.g. <code>fixtures/example.json</code>) and replay it headlessly with
+           <code>node replay/replay.js fixtures/example.json</code> against your running app.</p>
+        <textarea id="exportText" readonly></textarea>
+        <div class="row">
+          <button class="primary" id="downloadBtn">Download JSON</button>
+          <button id="copyBtn">Copy to clipboard</button>
+          <button id="closeExportBtn">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="log">
+      <h2>Results</h2>
+      <div id="logList"></div>
+    </div>
+  </div>
+  <footer>
+    <button id="skipBtn">Skip test</button>
+    <button id="restartBtn">Restart</button>
+    <button class="primary" id="exportBtn" disabled>Export results</button>
+    <div id="summary"></div>
+  </footer>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+// Three comes from the jsdelivr import map above — no bundler needed. If the
+// CDN is unreachable (offline, locked-down CI egress, corporate proxy), fall
+// back to the copy npm installed, so the self-test never goes red over a
+// third-party outage. devDependencies pins the same 0.160.0 either way.
+let THREE;
+try {
+  THREE = await import('three');
+} catch (err) {
+  console.warn('three unavailable from the CDN, falling back to node_modules:', err.message);
+  THREE = await import('../node_modules/three/build/three.module.js');
+}
+import { createClickTestHarness } from '../src/harness.js';
+import { createThreeHostAdapter } from '../src/three-adapter.js';
+import { renderFileIssueButton } from '../src/issue-button.js';
+
+// --- change this to point the "File issue" button at your real repo ---
+const GITHUB_OWNER = 'nolongerzzz';
+const GITHUB_REPO = 'click-test';
+
+// ---------- Demo scene (stand-in for your app's real geometry) ----------
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101317);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+viewport.insertBefore(renderer.domElement, viewport.firstChild);
+
+scene.add(new THREE.AmbientLight(0x8899aa, 0.6));
+const dl = new THREE.DirectionalLight(0xffffff, 0.9); dl.position.set(3,5,4); scene.add(dl);
+
+const plate = new THREE.Mesh(new THREE.BoxGeometry(7,0.2,7), new THREE.MeshStandardMaterial({ color:0x22262b, roughness:0.9 }));
+plate.position.y = -0.1; plate.name = 'plate'; scene.add(plate);
+scene.add(new THREE.GridHelper(7,14,0x3a4048,0x2a2f35));
+
+function box(w,h,d,color,name,pos,rotY){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({ color, roughness:0.6 }));
+  m.name = name; m.position.set(...pos); if (rotY) m.rotation.y = rotY;
+  m.userData.halfExtents = new THREE.Vector3(w/2,h/2,d/2);
+  scene.add(m);
+  return m;
+}
+const cubeA = box(1,1,1, 0x5b8dbe, 'cubeA', [-2.2,0.5,-1.2]);
+box(1,1,1, 0x5b8dbe, 'cubeB_back', [0.4,0.5,0.5]);
+const cubeBFront = box(0.8,0.8,0.8, 0xb5643a, 'cubeB_front', [0.75,0.4,0.95]);
+box(1.6,0.15,0.15, 0x7a9b6e, 'thinBar', [-1.8,0.075,1.8]);
+box(1,1,1, 0x8c6fae, 'rotatedCube', [2.1,0.5,-0.8], Math.PI/4);
+
+const raycastables = scene.children.filter(o => o.isMesh && o.name);
+
+let radius=7, theta=Math.PI/4, phi=1.0;
+const camTarget = new THREE.Vector3(0,0.4,0);
+function updateCam(){
+  camera.position.set(
+    camTarget.x + radius*Math.sin(phi)*Math.sin(theta),
+    camTarget.y + radius*Math.cos(phi),
+    camTarget.z + radius*Math.sin(phi)*Math.cos(theta)
+  );
+  camera.lookAt(camTarget);
+}
+updateCam();
+let dragging=false,lastX=0,lastY=0;
+renderer.domElement.addEventListener('pointerdown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; });
+window.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  const dx=e.clientX-lastX, dy=e.clientY-lastY;
+  theta -= dx*0.008; phi = Math.min(Math.max(phi-dy*0.008,0.15), Math.PI-0.15);
+  lastX=e.clientX; lastY=e.clientY; updateCam();
+});
+window.addEventListener('pointerup', ()=> dragging=false);
+renderer.domElement.addEventListener('wheel', e=>{
+  e.preventDefault(); radius = Math.min(Math.max(radius+e.deltaY*0.01, 2.5), 16); updateCam();
+}, { passive:false });
+
+function resize(){
+  const w=viewport.clientWidth, h=viewport.clientHeight;
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  renderer.setSize(w,h); renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+}
+window.addEventListener('resize', resize); resize();
+
+// ---------- Host adapter + config-driven test specs ----------
+const host = createThreeHostAdapter({ THREE, scene, camera, raycastables });
+
+const TESTS = [
+  { id:'top-face', title:'Pick a face straight on', instruction:'Tap the marker on top of the blue cube.',
+    target:{ objectId:'cubeA', kind:'face', normal:[0,1,0] }, accept:{ objectId:'cubeA', normals:[[0,1,0]] } },
+  { id:'shallow-face', title:'Pick a face at a shallow angle', instruction:'Orbit low, nearly level with the plate, then tap the marker on the front face.',
+    target:{ objectId:'cubeA', kind:'face', normal:[0,0,1] }, accept:{ objectId:'cubeA', normals:[[0,0,1]] } },
+  { id:'edge-pick', title:'Pick right on an edge', instruction:'This marker sits on the seam between two faces. Tap it.',
+    target:{ objectId:'cubeA', kind:'edge', normal:[0,1,1] }, accept:{ objectId:'cubeA', normals:[[0,1,0],[0,0,1]] } },
+  // worldPoint sits ON the front cube's near face, inside the region where the
+  // two cubes overlap on screen. It must not be a point INTERIOR to both cubes
+  // (as [0.6,0.5,0.8] was): from a high or shallow angle the sight line then
+  // enters the BACK cube first, so "which one is in front" flips with the
+  // camera and the test grades itself differently at different viewpoints.
+  { id:'occluded-pick', title:'Pick through an overlap', instruction:'Two cubes overlap here. Tap the marker in the overlap.',
+    target:{ objectId:'cubeB_front', kind:'occlusion', worldPoint:[0.7,0.65,1.35] }, accept:{ objectId:'cubeB_front' } },
+  { id:'thin-feature', title:'Pick a thin feature', instruction:'Tap the marker on the narrow green rail.',
+    target:{ objectId:'thinBar', kind:'face', normal:[0,1,0] }, accept:{ objectId:'thinBar' } },
+  { id:'placement', title:'Place a point on open plate', instruction:'Tap anywhere on the bare plate, away from any piece.',
+    target:{ objectId:'plate', kind:'placement', worldPoint:[1.6,0.02,2.0] }, accept:{ objectId:'plate' } },
+  { id:'rotated-face', title:'Pick a face after rotation', instruction:'The purple cube is rotated 45°. Tap the marker on its face.',
+    target:{ objectId:'rotatedCube', kind:'face', normal:[-1,0,0] }, accept:{ objectId:'rotatedCube', normals:[[-1,0,0]] } },
+];
+
+const logList = document.getElementById('logList');
+const exportBtn = document.getElementById('exportBtn');
+
+const harness = createClickTestHarness({
+  container: renderer.domElement,
+  host,
+  tests: TESTS,
+  onResult: (entry) => {
+    document.getElementById('progress').textContent = `Test ${Math.min(harness.currentIndex+1, TESTS.length)} of ${TESTS.length}`;
+    addLogRow(entry);
+    updateSummary();
+    if (harness.currentIndex < TESTS.length) showInstruction();
+  },
+  onComplete: () => {
+    document.getElementById('instruction').innerHTML = '<b>All tests complete.</b> Review the log, then export.';
+    document.getElementById('progress').textContent = 'Done';
+    exportBtn.disabled = false;
+  },
+});
+
+function showInstruction(){
+  const t = harness.currentTest;
+  document.getElementById('instruction').innerHTML = `<b>${t.title}.</b> ${t.instruction}`;
+}
+
+function addLogRow(entry){
+  const row = document.createElement('div');
+  row.className = 'logRow';
+  const top = document.createElement('div');
+  top.className = 'top';
+  top.innerHTML = `<span>${entry.title}</span><span class="badge ${entry.result}">${entry.result}</span>`;
+  row.appendChild(top);
+  if (entry.result === 'fail' || entry.result === 'miss') {
+    const btnHolder = document.createElement('div');
+    row.appendChild(btnHolder);
+    renderFileIssueButton({ owner: GITHUB_OWNER, repo: GITHUB_REPO, entry, container: btnHolder, label: 'File issue' });
+  }
+  logList.appendChild(row);
+  logList.scrollTop = logList.scrollHeight;
+}
+
+function updateSummary(){
+  const results = harness.getResults();
+  const pass = results.filter(r=>r.result==='pass').length;
+  const fail = results.filter(r=>r.result==='fail').length;
+  const miss = results.filter(r=>r.result==='miss').length;
+  document.getElementById('summary').textContent = `${pass} pass · ${fail} fail · ${miss} miss`;
+}
+
+document.getElementById('skipBtn').addEventListener('click', () => harness.skip());
+document.getElementById('restartBtn').addEventListener('click', () => {
+  logList.innerHTML = ''; exportBtn.disabled = true;
+  harness.restart(); showInstruction(); updateSummary();
+  document.getElementById('progress').textContent = `Test 1 of ${TESTS.length}`;
+});
+exportBtn.addEventListener('click', () => {
+  const json = JSON.stringify(harness.getSummary(), null, 2);
+  document.getElementById('exportText').value = json;
+  document.getElementById('exportPane').classList.add('open');
+});
+document.getElementById('closeExportBtn').addEventListener('click', () => {
+  document.getElementById('exportPane').classList.remove('open');
+});
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([document.getElementById('exportText').value], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'click-test-results.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+});
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(document.getElementById('exportText').value); }
+  catch(e){ document.getElementById('exportText').select(); }
+});
+
+harness.start();
+document.getElementById('progress').textContent = `Test 1 of ${TESTS.length}`;
+showInstruction();
+
+// Exposed so replay/record.js can drive this page headlessly with no
+// human clicking — it reads currentIndex/totalTests to know when to stop,
+// and getSummary() at the end to write out the fixture.
+window.__CTH_HARNESS__ = harness;
+
+(function animate(){
+  requestAnimationFrame(animate);
+  if (host.marker.visible) host.marker.scale.setScalar(1 + Math.sin(performance.now()*0.006)*0.25);
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
