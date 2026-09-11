@@ -22,8 +22,8 @@
 <script type="module">
 // Rehearsal of a live batch: stands in for a host app so the overlay, the
 // arming flow and the pass/fail readout can be checked without the real app.
-// The scene is a stand-in plate, NOT the Nest plate — only the names
-// (box_hull / pocket) and the interaction are shared.
+// The scene is a stand-in plate, NOT the Nest plate — only the naming shape
+// (box_hull_* with a shared prefix), the regions and the interaction match.
 let THREE;
 try { THREE = await import('three'); }
 catch { THREE = await import('../node_modules/three/build/three.module.js'); }
@@ -45,14 +45,19 @@ const hull = new THREE.Mesh(
   new THREE.BoxGeometry(3, 2, 2),
   new THREE.MeshStandardMaterial({ color: 0xd8b34a, roughness: 0.65 }),
 );
-hull.name = 'box_hull';
+// Names mirror the live plate: an instance name with dimensions baked in, so
+// the spec's `box_hull` prefix has to do real work. The pocket shares that
+// prefix, so ONLY `region` separates the two — same as the real part.
+hull.name = 'box_hull_80x40x20';
+hull.userData.cthRegion = 'hull';
 scene.add(hull);
 
 const pocket = new THREE.Mesh(
   new THREE.BoxGeometry(1.1, 0.9, 0.9),
   new THREE.MeshStandardMaterial({ color: 0xb5433a, roughness: 0.75 }),
 );
-pocket.name = 'pocket';
+pocket.name = 'box_hull_80x40x20_pocket';
+pocket.userData.cthRegion = 'pocket';
 pocket.position.set(0, 0, 0.75);
 scene.add(pocket);
 

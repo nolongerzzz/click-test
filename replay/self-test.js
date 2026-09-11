@@ -12,6 +12,11 @@
  * test is a pass case, and a grader that had gone too permissive would report
  * green.
  *
+ * It also runs replay/grade-check.js, which locks the host contract's grading
+ * rules (objectId as string or array, prefix matching, exact region) against a
+ * table — a fixture replay can only grade what the demo scene raycasts and
+ * cannot express an arbitrary objectId/region pair.
+ *
  * Finally it runs replay/capture-check.js, which proves a click on the mesh
  * does not start a host drag. That is the failure that killed the first live
  * batch against a real app: the host's own move tool took the pointerdown and
@@ -75,6 +80,8 @@ async function main() {
 
   try {
     await waitForServer(APP_URL);
+    console.log('\n--- host contract: objectId array / prefix / region rules ---');
+    await run(process.execPath, ['replay/grade-check.js']);
     console.log(`\n--- record: driving ${APP_URL} with simulated clicks ---`);
     await run(process.execPath, ['replay/record.js', FIXTURE], { APP_URL });
     console.log(`\n--- replay: re-resolving ${FIXTURE} through the host hooks ---`);

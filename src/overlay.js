@@ -152,9 +152,7 @@ export function createCthOverlay({ tests, onArm, title = 'Click Test Harness', m
       const aim = state.find((a) => a.id === entry.testId);
       if (aim) {
         aim.status = entry.result;
-        const got = entry.hit ? entry.hit.objectId : 'nothing';
-        const want = entry.expected && entry.expected.objectId ? entry.expected.objectId : 'any';
-        aim.detail = `got <b>${escapeHtml(String(got))}</b> · wanted <b>${escapeHtml(String(want))}</b>`;
+        aim.detail = `got <b>${escapeHtml(describeHit(entry.hit))}</b><br>wanted <b>${escapeHtml(describeAccept(entry.expected))}</b>`;
       }
       render();
     },
@@ -166,6 +164,25 @@ export function createCthOverlay({ tests, onArm, title = 'Click Test Harness', m
 
     destroy() { hostEl.remove(); },
   };
+}
+
+// Both halves of the readout name the id AND the region, because the aims in a
+// regioned batch share their part ids — "got box_hull_80x40x20" alone cannot
+// tell a pocket-floor miss from a hull hit, which is the whole distinction the
+// batch is testing.
+function describeHit(hit) {
+  if (!hit) return 'nothing';
+  const id = hit.objectId || '(unnamed)';
+  return `${id} / ${hit.region == null ? 'no region' : hit.region}`;
+}
+
+function describeAccept(accept) {
+  if (!accept) return 'anything';
+  const ids = accept.objectId == null
+    ? 'any id'
+    : (Array.isArray(accept.objectId) ? accept.objectId.join(' | ') : accept.objectId);
+  const region = accept.region == null ? 'any region' : accept.region;
+  return `${ids} / ${region}`;
 }
 
 function escapeHtml(s) {

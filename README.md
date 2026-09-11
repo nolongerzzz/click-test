@@ -14,6 +14,7 @@ src/harness.js           -- engine-agnostic core. Knows nothing about Three.js.
 src/grade.js             -- the one grading rule, shared by harness + replay.
 src/three-adapter.js     -- implements the "host contract" for Three.js apps.
 src/pointer-capture.js   -- takes one click back from a host's own drag tooling.
+specs/                   -- aim sets for live batches against a real app.
 src/overlay.js           -- the live pass/fail panel (shadow DOM, host-agnostic).
 src/cth-live.js          -- one call that wires all of the above into a real app.
 src/issue-button.js      -- Tier 1: prefilled GitHub issue URL, no token needed.
@@ -234,6 +235,56 @@ Deliberately not addressed, recorded here so they aren't silently forgotten:
   non-Three adapter (Babylon, native canvas, a stub) is what would establish
   it — and is also the natural place to find out.
 
+## Host contract (locked)
+
+A host adapter's `raycastAtScreenPoint` must return this shape:
+
+```js
+{ hit, objectId, region, point, normal, distance }   // or { hit: false }
+```
+
+| field | meaning |
+|---|---|
+| `hit` | `false` means the ray reached nothing |
+| `objectId` | the picked object's stable id |
+| `region` | `'hull'` \| `'pocket'` \| `null` — which part of the piece was hit |
+| `point` | world-space intersection |
+| `normal` | **local**-space surface normal, or `null` |
+| `distance` | along the ray |
+
+`src/three-adapter.js` derives `region` from `userData.cthRegion` (falling back
+to `userData.region`), or from a `regionOf(object)` function passed to
+`createThreeHostAdapter`. Anything it does not recognise becomes `null` rather
+than being passed through, so a typo cannot satisfy an `accept.region` by
+accident.
+
+### What `accept` may ask for
+
+```js
+accept: { objectId, region, normals, normalTolerance }
+```
+
+- **`objectId`** — a string **or an array of strings**. Any one matching is
+  enough. Each is matched as a **prefix**, so `box_hull` matches
+  `box_hull_80x40x20` and a spec need not know the dimensions baked into an
+  instance name.
+- **`region`** — when set, `hit.region` must equal it **exactly**. A host that
+  reports no region cannot satisfy a spec that demands one; otherwise an
+  adapter that simply stopped emitting `region` would silently pass every
+  regioned aim instead of failing loudly.
+- **`normals` / `normalTolerance`** — see below.
+
+Each constraint is independent, and all of them that are present must hold.
+
+Region is what does the real work when aims share part ids. In
+`specs/nest-plate-first-batch.js` all four aims accept the same two ids, and
+only `region` separates the pocket floor from the hull around it — an
+id-prefix match alone would pass a pocket pick on a hull aim.
+
+`replay/grade-check.js` locks these rules against a table, since a fixture
+replay can only grade what the demo scene happens to raycast and cannot express
+an arbitrary objectId/region pair.
+
 ## Making a test spec
 
 ```js
@@ -245,6 +296,9 @@ Deliberately not addressed, recorded here so they aren't silently forgotten:
   accept:  { objectId: 'cubeA', normals: [[0,1,0]] }
 }
 ```
+
+`accept.objectId` may also be an array, and is prefix-matched; `accept.region`
+pins which part of the piece counts. See **Host contract (locked)** above.
 
 ### `accept.normalTolerance` (optional)
 

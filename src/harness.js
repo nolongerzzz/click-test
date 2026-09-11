@@ -10,7 +10,8 @@
  * --------------
  * host.placeMarker(target)         -> show a visual target for the test, however the host wants
  * host.clearMarker()               -> hide it
- * host.raycastAtScreenPoint(pt)    -> { hit:boolean, objectId, point:{x,y,z}, normal:{x,y,z}, distance } | { hit:false }
+ * host.raycastAtScreenPoint(pt)    -> { hit:boolean, objectId, region, point:{x,y,z}, normal:{x,y,z}, distance } | { hit:false }
+ *                                     region is 'hull' | 'pocket' | null
  * host.getCameraState()            -> any serializable object; opaque to the harness, used for logging/replay
  * host.setCameraState(state)       -> optional, only required for headless replay mode
  * host.onPointerCapture(el, cb)    -> optional; if omitted, the harness attaches its own listeners to `container`
@@ -20,8 +21,11 @@
  * {
  *   id, title, instruction,
  *   target: { objectId, kind: 'face'|'edge'|'occlusion'|'placement', normal?: [x,y,z], worldPoint?: [x,y,z] },
- *   accept: { objectId, normals?: [[x,y,z], ...], normalTolerance?: number }
+ *   accept: { objectId, region?, normals?: [[x,y,z], ...], normalTolerance?: number }
  *           // optional, defaults derived from target.
+ *           // objectId may be a string or string[]; each is matched as a
+ *           //   prefix, so box_hull matches box_hull_80x40x20.
+ *           // region, when set, must equal hit.region exactly.
  *           // normalTolerance defaults to 0.95 — see src/grade.js
  * }
  */
@@ -131,6 +135,7 @@ export function createClickTestHarness({
       clickScreen: point,
       hit: hit && hit.hit ? {
         objectId: hit.objectId,
+        region: hit.region ?? null,
         point: hit.point,
         normal: hit.normal,
         distance: hit.distance,
