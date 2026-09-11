@@ -1,0 +1,196 @@
+{
+  "READ_THIS_FIRST": "INTENTIONAL NEGATIVE CONTROLS - THESE ARE NOT BUGS. Every entry here is built to produce a fail or miss on purpose, and each declares the grade it must produce via its \"expect\" field. replay.js passes an entry when its actual grade EQUALS its \"expect\", so a green run means the grading rules still reject what they should. If an entry here starts reporting BROKEN, the bug is in src/grade.js having become too permissive (or too strict) - do NOT \"fix\" it by editing the expected/camera/click data to make it pass.",
+  "generatedAt": "2026-09-11T08:32:08.910Z",
+  "provenance": "Hand-assembled from fixtures/self-test.json - the only fixture in this repo that is written rather than recorded. The camera and clickScreen values are real recorded data lifted from the entries named in each note; only the \"expected\" block is altered, so the raycast itself stays genuine.",
+  "results": [
+    {
+      "note": "Uses the placement test's camera and click, so the ray genuinely lands on \"plate\", while expected.objectId still says \"cubeA\". Exercises the objectId-mismatch branch of gradeHit.",
+      "testId": "neg-wrong-object",
+      "title": "Negative control: wrong object must grade fail",
+      "expect": "fail",
+      "camera": {
+        "position": {
+          "x": 3.585,
+          "y": 4.551,
+          "z": 4.349
+        },
+        "quaternion": {
+          "x": -0.2937,
+          "y": 0.321,
+          "z": 0.1055,
+          "w": 0.8942
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 484,
+        "yPix": 632,
+        "xNDC": -0.0122,
+        "yNDC": -0.8532,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "expected": {
+        "objectId": "cubeA"
+      },
+      "hit": {
+        "objectId": "cubeA",
+        "point": {
+          "x": -2.3643,
+          "y": 1,
+          "z": -1.3381
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "distance": 9.1128
+      }
+    },
+    {
+      "note": "Real camera from the top-face test, but aimed at empty sky above the scene where nothing is raycastable. Exercises the no-hit branch of gradeHit.",
+      "testId": "neg-no-hit",
+      "title": "Negative control: empty space must grade miss",
+      "expect": "miss",
+      "camera": {
+        "position": {
+          "x": 4.165,
+          "y": 4.182,
+          "z": 4.165
+        },
+        "quaternion": {
+          "x": -0.2601,
+          "y": 0.3672,
+          "z": 0.1077,
+          "w": 0.8865
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 25,
+        "yPix": 17,
+        "xNDC": -0.95,
+        "yNDC": 0.95,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "expected": {
+        "objectId": "cubeA"
+      }
+    },
+    {
+      "note": "Real top-face hit, whose surface normal is (0,1,0). The accepted normal is 45 degrees away, so the dot product is ~0.7071 - below the 0.95 default. Proves the default still applies when normalTolerance is absent.",
+      "testId": "neg-normal-outside-default-tolerance",
+      "title": "Negative control: off-axis normal must fail at the default tolerance",
+      "expect": "fail",
+      "camera": {
+        "position": {
+          "x": 4.165,
+          "y": 4.182,
+          "z": 4.165
+        },
+        "quaternion": {
+          "x": -0.2601,
+          "y": 0.3672,
+          "z": 0.1077,
+          "w": 0.8865
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 423,
+        "yPix": 163,
+        "xNDC": -0.1373,
+        "yNDC": 0.5219,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "expected": {
+        "objectId": "cubeA",
+        "normals": [
+          [
+            0.7071,
+            0.7071,
+            0
+          ]
+        ]
+      },
+      "hit": {
+        "objectId": "cubeA",
+        "point": {
+          "x": -2.3643,
+          "y": 1,
+          "z": -1.3381
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "distance": 9.1128
+      }
+    },
+    {
+      "note": "Identical to neg-normal-outside-default-tolerance except for normalTolerance: 0.5. The same ~0.7071 dot product now clears the bar, proving accept.normalTolerance is actually read and not ignored.",
+      "testId": "neg-normal-inside-loosened-tolerance",
+      "title": "Negative control: the same normal must pass once tolerance is loosened",
+      "expect": "pass",
+      "camera": {
+        "position": {
+          "x": 4.165,
+          "y": 4.182,
+          "z": 4.165
+        },
+        "quaternion": {
+          "x": -0.2601,
+          "y": 0.3672,
+          "z": 0.1077,
+          "w": 0.8865
+        },
+        "fov": 45,
+        "aspect": 1.436950146627566,
+        "zoom": 1
+      },
+      "clickScreen": {
+        "xPix": 423,
+        "yPix": 163,
+        "xNDC": -0.1373,
+        "yNDC": 0.5219,
+        "canvasWidth": 980,
+        "canvasHeight": 682
+      },
+      "expected": {
+        "objectId": "cubeA",
+        "normals": [
+          [
+            0.7071,
+            0.7071,
+            0
+          ]
+        ],
+        "normalTolerance": 0.5
+      },
+      "hit": {
+        "objectId": "cubeA",
+        "point": {
+          "x": -2.3643,
+          "y": 1,
+          "z": -1.3381
+        },
+        "normal": {
+          "x": 0,
+          "y": 1,
+          "z": 0
+        },
+        "distance": 9.1128
+      }
+    }
+  ]
+}

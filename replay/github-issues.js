@@ -82,6 +82,9 @@ function buildBody(entry) {
     '',
     `**Test:** ${entry.testId} — ${entry.title}`,
     `**Result:** ${entry.result}`,
+    ...(entry.expectedResult && entry.expectedResult !== 'pass'
+      ? [`**Negative control regression:** this entry is supposed to grade \`${entry.expectedResult}\`, but graded \`${entry.result}\`. The grading rules in \`src/grade.js\` have most likely become too permissive — do not "fix" the fixture.`]
+      : []),
     `**Expected object:** \`${entry.expected ? entry.expected.objectId : 'n/a'}\``,
     `**Got now:** \`${entry.hit ? JSON.stringify(entry.hit) : 'no hit'}\``,
     `**Recorded in fixture:** \`${entry.recordedHit ? JSON.stringify(entry.recordedHit) : 'n/a'}\``,

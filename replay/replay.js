@@ -25,6 +25,7 @@
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 import { fileIssuesForFailures } from './github-issues.js';
+import { gradeHit } from '../src/grade.js';
 
 const APP_URL = process.env.APP_URL || 'http://localhost:5174/demo/';
 const fixturePath = process.argv[2];
@@ -36,17 +37,14 @@ if (!fixturePath) {
 
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf-8'));
 
-function gradeReplay(expected, hit) {
-  if (!hit || !hit.hit) return 'miss';
-  if (!expected || !expected.objectId) return 'pass';
-  if (hit.objectId !== expected.objectId) return 'fail';
-  if (expected.normals && expected.normals.length) {
-    const hn = hit.normal;
-    if (!hn) return 'fail';
-    const ok = expected.normals.some(([nx, ny, nz]) => (hn.x * nx + hn.y * ny + hn.z * nz) > 0.95);
-    return ok ? 'pass' : 'fail';
-  }
-  return 'pass';
+// An entry may declare the grade it is SUPPOSED to produce via `expect`
+// ('pass' when absent). fixtures/negative-controls.json uses this to assert
+// that deliberately mismatched data really does come back 'fail'/'miss' —
+// without that, a grader that had become too permissive would show green, and
+// a fixture full of genuine failures would spam issues on every CI run.
+// An entry is a problem only when its actual grade differs from `expect`.
+function expectationOf(entry) {
+  return entry.expect || 'pass';
 }
 
 async function main() {
@@ -77,18 +75,38 @@ async function main() {
       return window.__CTH_HOST__.raycastAtScreenPoint(clickScreen);
     }, { camera: original.camera, clickScreen: original.clickScreen });
 
-    const result = gradeReplay(original.expected, hit);
+    const result = gradeHit(original.expected, hit);
+    const expectation = expectationOf(original);
+    const asExpected = result === expectation;
+
     // `hit` is what the issue body should report — the ORIGINAL entry's `hit`
     // is the recorded (passing) result, which would be actively misleading.
-    outcomes.push({ ...original, recordedHit: original.hit, hit, replayHit: hit, result });
-    console.log(`${result.padEnd(6)} ${original.testId} — ${original.title}`);
+    outcomes.push({
+      ...original,
+      recordedHit: original.hit,
+      hit,
+      replayHit: hit,
+      result,
+      expectedResult: expectation,
+      asExpected,
+    });
+
+    if (expectation === 'pass') {
+      console.log(`${result.padEnd(6)} ${original.testId} — ${original.title}`);
+    } else {
+      const tag = asExpected ? 'ok' : 'BROKEN';
+      console.log(`${tag.padEnd(6)} ${original.testId} — ${original.title}  [negative control: expected ${expectation}, got ${result}]`);
+    }
   }
 
   await browser.close();
 
-  const failing = outcomes.filter((o) => o.result === 'fail' || o.result === 'miss');
-  const pass = outcomes.length - failing.length;
-  console.log(`\n${pass}/${outcomes.length} passed`);
+  const failing = outcomes.filter((o) => !o.asExpected);
+  const negatives = outcomes.filter((o) => o.expectedResult !== 'pass').length;
+  console.log(
+    `\n${outcomes.length - failing.length}/${outcomes.length} as expected` +
+    (negatives ? ` (${negatives} of them negative controls)` : ''),
+  );
 
   if (outcomes.length === 0) {
     console.error(`No replayable entries in ${fixturePath} (every result lacked camera/clickScreen data).`);
