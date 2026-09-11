@@ -11,6 +11,7 @@ something regresses.
 
 ```
 src/harness.js           -- engine-agnostic core. Knows nothing about Three.js.
+src/grade.js             -- the one grading rule, shared by harness + replay.
 src/three-adapter.js     -- implements the "host contract" for Three.js apps.
 src/issue-button.js      -- Tier 1: prefilled GitHub issue URL, no token needed.
 replay/record.js         -- drives a page with real clicks to produce a fixture.
@@ -132,11 +133,40 @@ It runs two different mechanisms back to back, on purpose:
    broken — the one path it exists to protect.
 2. **`replay/replay.js`** then replays that same fixture through the direct
    `window.__CTH_HOST__` hooks and checks every result still matches.
+3. **`fixtures/negative-controls.json`** is replayed last, to check the grader
+   still *rejects* what it should. Every other fixture entry in this repo is a
+   pass case, so without this a grading rule that had gone too permissive would
+   report green. Each entry there declares the grade it must produce via an
+   `expect` field (`'pass'` when absent), and replay treats an entry as OK only
+   when its actual grade equals that. **They are intentional — a `BROKEN` line
+   from one of them means `src/grade.js` regressed, not that the fixture needs
+   fixing.**
 
 If step 1 can't complete every test, or step 2 finds a mismatch, the bug is
 in `src/harness.js` or `src/three-adapter.js` — this workflow is what
 protects those two files, independent of whatever app you've wired the
 harness into elsewhere.
+
+## Known limitations
+
+Deliberately not addressed, recorded here so they aren't silently forgotten:
+
+- **`zoom` and `fov` are captured and restored but never exercised.**
+  `getCameraState` records both and `setCameraState` restores them, yet nothing
+  in the demo varies either — its wheel handler changes the orbit *radius*
+  (moving the camera) rather than touching `camera.zoom`, and `fov` is fixed at
+  45. So both fields are constant across every recorded fixture, and a
+  regression that dropped them from the restore path would not be caught. The
+  sibling field `aspect` *is* covered, because replay sizes its viewport from
+  the fixture and so genuinely differs from the live page. Anyone wiring in an
+  app with a zoom or FOV control should add a fixture that varies them.
+
+- **"Engine-agnostic core" is a claim, not a tested property.**
+  `src/harness.js` is written to talk only to the host-adapter contract, but
+  `src/three-adapter.js` is the only implementation that exists, so nothing
+  proves the core has not quietly grown a Three.js assumption. The first
+  non-Three adapter (Babylon, native canvas, a stub) is what would establish
+  it — and is also the natural place to find out.
 
 ## Making a test spec
 
@@ -149,6 +179,28 @@ harness into elsewhere.
   accept:  { objectId: 'cubeA', normals: [[0,1,0]] }
 }
 ```
+
+### `accept.normalTolerance` (optional)
+
+A hit's normal counts as matching an accepted normal when the dot product of
+the two is **strictly greater than** `accept.normalTolerance`, which defaults
+to `0.95` (roughly 18 degrees of slop). Set it per test to loosen or tighten
+that:
+
+```js
+accept: { objectId: 'bracket', normals: [[0,1,0]], normalTolerance: 0.8 }
+```
+
+The default suits flat, axis-aligned faces, where the normal at the click
+point is exactly the nominal one. Loosen it (towards `0`) for curved or
+tessellated geometry, where the triangle you happen to hit can sit some way
+off the nominal direction and a strict threshold would reject a correct pick.
+Tighten it (towards `1`) when a test needs to distinguish two nearly parallel
+faces.
+
+The field lives on `accept`, so it is carried into recordings as
+`expected.normalTolerance` and honoured identically on replay — one rule, in
+`src/grade.js`, shared by the live harness and the headless replay.
 
 `normal` is always in the object's **local** space — that's what makes the
 "pick a face after rotation" test category work: the local normal for "the

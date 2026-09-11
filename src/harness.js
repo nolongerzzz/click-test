@@ -20,9 +20,13 @@
  * {
  *   id, title, instruction,
  *   target: { objectId, kind: 'face'|'edge'|'occlusion'|'placement', normal?: [x,y,z], worldPoint?: [x,y,z] },
- *   accept: { objectId, normals?: [[x,y,z], ...] }   // optional, defaults derived from target
+ *   accept: { objectId, normals?: [[x,y,z], ...], normalTolerance?: number }
+ *           // optional, defaults derived from target.
+ *           // normalTolerance defaults to 0.95 — see src/grade.js
  * }
  */
+
+import { gradeHit } from './grade.js';
 
 export function createClickTestHarness({ container, host, tests, onResult, onComplete }) {
   if (!container) throw new Error('createClickTestHarness: container is required');
@@ -107,7 +111,7 @@ export function createClickTestHarness({ container, host, tests, onResult, onCom
         normal: hit.normal,
         distance: hit.distance,
       } : null,
-      expected: t.accept || { objectId: t.target ? t.target.objectId : null },
+      expected: acceptFor(t),
       result,
     };
     results.push(entry);
@@ -119,21 +123,14 @@ export function createClickTestHarness({ container, host, tests, onResult, onCom
     finishIfDone();
   }
 
+  // The rule itself lives in src/grade.js so replay/replay.js grades a
+  // replayed click exactly the way this grades a live one.
   function grade(t, hit) {
-    if (!hit || !hit.hit) return 'miss';
-    const accept = t.accept || { objectId: t.target && t.target.objectId };
-    if (!accept || !accept.objectId) return 'pass';
-    if (hit.objectId !== accept.objectId) return 'fail';
-    if (accept.normals && accept.normals.length) {
-      const hn = hit.normal;
-      if (!hn) return 'fail';
-      const ok = accept.normals.some(([nx, ny, nz]) => {
-        const dot = hn.x * nx + hn.y * ny + hn.z * nz;
-        return dot > 0.95;
-      });
-      return ok ? 'pass' : 'fail';
-    }
-    return 'pass';
+    return gradeHit(acceptFor(t), hit);
+  }
+
+  function acceptFor(t) {
+    return t.accept || { objectId: t.target ? t.target.objectId : null };
   }
 
   function skip() {
