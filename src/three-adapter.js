@@ -17,7 +17,29 @@
  * the local normal for "the left face" doesn't change when the object rotates).
  */
 
-export function createThreeHostAdapter({ THREE, scene, camera, raycastables, markerColor = 0xe8a33d, markerLift = 0.08 }) {
+import { REGIONS } from './grade.js';
+
+function defaultRegionOf(obj) {
+  const d = obj && obj.userData;
+  if (!d) return null;
+  return d.cthRegion ?? d.region ?? null;
+}
+
+function normaliseRegion(value) {
+  // Anything the host does not recognise becomes null rather than being passed
+  // through, so a typo cannot satisfy an accept.region by accident.
+  return REGIONS.includes(value) ? value : null;
+}
+
+export function createThreeHostAdapter({
+  THREE, scene, camera, raycastables,
+  markerColor = 0xe8a33d,
+  markerLift = 0.08,
+  // How an object reports which part of the piece it is. The locked host
+  // contract requires `region` on every hit: 'hull' | 'pocket' | null.
+  // Default reads userData, so a host tags meshes rather than passing a fn.
+  regionOf = defaultRegionOf,
+}) {
   const raycaster = new THREE.Raycaster();
   const markerGeo = new THREE.SphereGeometry(0.07, 16, 16);
   const markerMat = new THREE.MeshBasicMaterial({ color: markerColor });
@@ -85,6 +107,7 @@ export function createThreeHostAdapter({ THREE, scene, camera, raycastables, mar
     return {
       hit: true,
       objectId: h.object.name,
+      region: normaliseRegion(regionOf(h.object)),
       point: { x: +h.point.x.toFixed(4), y: +h.point.y.toFixed(4), z: +h.point.z.toFixed(4) },
       normal: h.face ? { x: +h.face.normal.x.toFixed(3), y: +h.face.normal.y.toFixed(3), z: +h.face.normal.z.toFixed(3) } : null,
       distance: +h.distance.toFixed(4),

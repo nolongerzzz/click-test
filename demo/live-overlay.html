@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Click Test Harness — live overlay rehearsal</title>
+<style>
+  html,body{margin:0;height:100%;background:#101317;color:#e7e5e1;
+    font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden;}
+  #viewport{position:absolute;inset:0;}
+  #viewport canvas{display:block;width:100%;height:100%;}
+  #hostbar{position:absolute;left:12px;bottom:12px;background:rgba(20,23,27,.9);
+    border:1px solid #2a3037;border-radius:6px;padding:8px 10px;}
+</style>
+</head>
+<body>
+<div id="viewport"></div>
+<div id="hostbar">host status: <span id="hostStatus">idle</span></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+// Rehearsal of a live batch: stands in for a host app so the overlay, the
+// arming flow and the pass/fail readout can be checked without the real app.
+// The scene is a stand-in plate, NOT the Nest plate — only the naming shape
+// (box_hull_* with a shared prefix), the regions and the interaction match.
+let THREE;
+try { THREE = await import('three'); }
+catch { THREE = await import('../node_modules/three/build/three.module.js'); }
+
+import { mountLiveHarness } from '../src/cth-live.js';
+import { NEST_PLATE_FIRST_BATCH } from '../specs/nest-plate-first-batch.js';
+
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101317);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+viewport.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0x8899aa, 0.7));
+const dl = new THREE.DirectionalLight(0xffffff, 0.95); dl.position.set(4, 6, 5); scene.add(dl);
+
+// Stand-in plate: a yellow hull with a red pocket sunk into its near face.
+const hull = new THREE.Mesh(
+  new THREE.BoxGeometry(3, 2, 2),
+  new THREE.MeshStandardMaterial({ color: 0xd8b34a, roughness: 0.65 }),
+);
+// Names mirror the live plate: an instance name with dimensions baked in, so
+// the spec's `box_hull` prefix has to do real work. The pocket shares that
+// prefix, so ONLY `region` separates the two — same as the real part.
+hull.name = 'box_hull_80x40x20';
+hull.userData.cthRegion = 'hull';
+scene.add(hull);
+
+const pocket = new THREE.Mesh(
+  new THREE.BoxGeometry(1.1, 0.9, 0.9),
+  new THREE.MeshStandardMaterial({ color: 0xb5433a, roughness: 0.75 }),
+);
+pocket.name = 'box_hull_80x40x20_pocket';
+pocket.userData.cthRegion = 'pocket';
+pocket.position.set(0, 0, 0.75);
+scene.add(pocket);
+
+const raycastables = [hull, pocket];
+
+camera.position.set(4.2, 3.4, 5.2);
+camera.lookAt(0, 0, 0);
+function resize() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h); renderer.setPixelRatio(1);
+}
+window.addEventListener('resize', resize); resize();
+
+// A host move tool of the kind that stole the live picks.
+let moveCount = 0;
+renderer.domElement.addEventListener('pointerdown', () => {
+  moveCount++;
+  hull.position.x += 0.3;
+  document.getElementById('hostStatus').textContent = `Moved model #1 (x${moveCount})`;
+});
+
+const live = mountLiveHarness({
+  THREE, scene, camera, renderer, raycastables,
+  tests: NEST_PLATE_FIRST_BATCH,
+  title: 'CTH — Nest plate, batch 1',
+});
+
+window.__REHEARSAL__ = {
+  mounted: !!live,
+  moveCount: () => moveCount,
+  overlayPresent: () => !!document.querySelector('[data-cth-overlay]'),
+  overlayText: () => {
+    const el = document.querySelector('[data-cth-overlay]');
+    return el && el.shadowRoot ? el.shadowRoot.querySelector('.panel').textContent.replace(/\s+/g, ' ').trim() : null;
+  },
+  arm: () => document.querySelector('[data-cth-overlay]').shadowRoot.querySelector('button').click(),
+  results: () => (live ? live.harness.getResults() : []),
+  pointAt: (name) => {
+    const obj = name === 'pocket' ? pocket : hull;
+    const v = obj.getWorldPosition(new THREE.Vector3());
+    if (name === 'hull') v.set(-1.2, 0.7, 1.001);          // hull front face, clear of the pocket
+    if (name === 'pocket') v.set(0, 0, 1.2001);            // pocket front face
+    v.project(camera);
+    const r = renderer.domElement.getBoundingClientRect();
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + (1 - (v.y + 1) / 2) * r.height };
+  },
+};
+
+(function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Click Test Harness — pointer-capture check</title>
+<style>
+  html,body{margin:0;height:100%;background:#101317;color:#e7e5e1;
+    font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden;}
+  #viewport{position:absolute;inset:0;}
+  #viewport canvas{display:block;width:100%;height:100%;}
+  #status{position:absolute;left:12px;bottom:12px;background:rgba(20,23,27,.9);
+    border:1px solid #2a3037;border-radius:6px;padding:8px 10px;}
+</style>
+</head>
+<body>
+<div id="viewport"></div>
+<div id="status">host status: <span id="hostStatus">idle</span></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+// Reproduces the failure seen on the live Nest plate: a host that starts a
+// model move on pointerdown over the canvas, which swallows the pick before
+// the harness can grade it. Used by replay/capture-check.js to prove that
+// pointerMode:'capture' takes the gesture back.
+let THREE;
+try { THREE = await import('three'); }
+catch { THREE = await import('../node_modules/three/build/three.module.js'); }
+
+import { createClickTestHarness } from '../src/harness.js';
+import { createThreeHostAdapter } from '../src/three-adapter.js';
+
+const viewport = document.getElementById('viewport');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101317);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+viewport.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0x8899aa, 0.7));
+const dl = new THREE.DirectionalLight(0xffffff, 0.9); dl.position.set(3, 5, 4); scene.add(dl);
+
+const slab = new THREE.Mesh(
+  new THREE.BoxGeometry(2, 2, 2),
+  new THREE.MeshStandardMaterial({ color: 0x5b8dbe, roughness: 0.6 }),
+);
+slab.name = 'box_hull';
+scene.add(slab);
+const raycastables = [slab];
+
+camera.position.set(4, 4, 4);
+camera.lookAt(0, 0, 0);
+function resize() {
+  const w = viewport.clientWidth, h = viewport.clientHeight;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h); renderer.setPixelRatio(1);
+}
+window.addEventListener('resize', resize); resize();
+
+// ---- THE STEAL -------------------------------------------------------------
+// A host move tool, the way a real one is wired: an ordinary bubble-phase
+// pointerdown on the canvas that immediately starts dragging the model.
+// Registered BEFORE the harness, which is the worst case for the harness.
+let moveCount = 0;
+renderer.domElement.addEventListener('pointerdown', () => {
+  moveCount++;
+  slab.position.x += 0.35;
+  document.getElementById('hostStatus').textContent = `Moved model #1 (x${moveCount})`;
+});
+
+// ---- The harness, in capture mode ------------------------------------------
+const host = createThreeHostAdapter({ THREE, scene, camera, raycastables });
+const results = [];
+let dragsIgnored = 0;
+
+const harness = createClickTestHarness({
+  container: renderer.domElement,
+  host,
+  pointerMode: 'capture',
+  tests: [
+    { id: 'hull-face-a', title: 'Hull face A', accept: { objectId: 'box_hull' } },
+    { id: 'hull-face-b', title: 'Hull face B', accept: { objectId: 'box_hull' } },
+    { id: 'hull-face-c', title: 'Hull face C', accept: { objectId: 'box_hull' } },
+    { id: 'hull-face-d', title: 'Hull face D', accept: { objectId: 'box_hull' } },
+  ],
+  onResult: (entry) => results.push(entry),
+  onDragIgnored: () => { dragsIgnored++; },
+});
+harness.start();
+
+window.__CHECK__ = {
+  harness,
+  armOnce: () => harness.armOnce(),
+  isArmed: () => harness.isArmed(),
+  moveCount: () => moveCount,
+  results: () => results,
+  dragsIgnored: () => dragsIgnored,
+  slabX: () => +slab.position.x.toFixed(4),
+  centre: () => {
+    const r = renderer.domElement.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  },
+};
+
+(function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>

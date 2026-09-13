@@ -13,6 +13,10 @@ something regresses.
 src/harness.js           -- engine-agnostic core. Knows nothing about Three.js.
 src/grade.js             -- the one grading rule, shared by harness + replay.
 src/three-adapter.js     -- implements the "host contract" for Three.js apps.
+src/pointer-capture.js   -- takes one click back from a host's own drag tooling.
+specs/                   -- aim sets for live batches against a real app.
+src/overlay.js           -- the live pass/fail panel (shadow DOM, host-agnostic).
+src/cth-live.js          -- one call that wires all of the above into a real app.
 src/issue-button.js      -- Tier 1: prefilled GitHub issue URL, no token needed.
 replay/record.js         -- drives a page with real clicks to produce a fixture.
 replay/replay.js         -- Tier 2: headless CI replay via Playwright.
@@ -147,6 +151,69 @@ in `src/harness.js` or `src/three-adapter.js` — this workflow is what
 protects those two files, independent of whatever app you've wired the
 harness into elsewhere.
 
+## Running a live batch inside a real app
+
+The demo drives itself. A live batch is different: a person aims at features of
+a real model in the real app, and needs to see pass/fail per aim as they go.
+
+**Integration is one import and one call.** It is inert unless the URL carries
+the flag, so shipping the call costs the normal app nothing:
+
+```js
+import { mountLiveHarness } from '<path>/click-test/src/cth-live.js';
+import { MY_AIMS } from '<path>/click-test/specs/my-aims.js';
+
+mountLiveHarness({ THREE, scene, camera, renderer, raycastables, tests: MY_AIMS });
+// inert on the normal URL; active on ?cth=1
+```
+
+`raycastables` is the array of pickable `Object3D`s, each with `.name` set to
+the id used in a spec's `accept.objectId`. Nothing else about the host changes.
+
+### Arm, then click — and why
+
+A host that moves the model on `pointerdown` will eat the pick before the
+harness ever grades it: the model slides, the pointer travels past the drag
+threshold, and the gesture is discarded as a drag. The symptom is a host status
+like "Moved model #1" with zero face hits.
+
+So live batches run in `pointerMode: 'capture'`, which listens in the **capture
+phase on `window`** — strictly ahead of any listener on the canvas, whatever
+order they were registered in — and calls `stopImmediatePropagation()`. The
+host's handler never runs.
+
+That is armed **per pick**, not permanently, because the tester still needs to
+orbit and tip the part between aims. Press **Arm pick**, click once, and the
+harness takes exactly that one gesture; everything before and after is the
+host's as usual. An armed gesture that moves too far is reported as an ignored
+drag rather than graded.
+
+`replay/capture-check.js` proves this against a host that deliberately steals
+pointerdown: unarmed the model slides and nothing is graded (so the check is
+testing something real), armed the model does not move and the pick grades.
+
+### Aim-by-eye specs
+
+A live spec usually has no `target`: the tester aims at a described feature
+rather than a rendered marker, which avoids needing local normals and
+half-extents for the real geometry. Only `accept` is needed to grade. See
+`specs/nest-plate-first-batch.js`.
+
+### Testing the flag locally
+
+`npm run demo` uses `serve`, whose `cleanUrls` 301-redirects `/x.html` to `/x`
+**and drops the query string** — so `?cth=1` silently vanishes and the overlay
+never mounts. Use the extensionless URL locally:
+
+```
+http://localhost:5174/demo/live-overlay?cth=1      # works
+http://localhost:5174/demo/live-overlay.html?cth=1 # query lost to the redirect
+```
+
+GitHub Pages serves `.html` directly and keeps the query, so a deployed
+`?cth=1` URL is unaffected. (Setting `cleanUrls:false` in a `serve.json` fixes
+the redirect but breaks directory-index resolution, so it is not worth it.)
+
 ## Known limitations
 
 Deliberately not addressed, recorded here so they aren't silently forgotten:
@@ -168,6 +235,56 @@ Deliberately not addressed, recorded here so they aren't silently forgotten:
   non-Three adapter (Babylon, native canvas, a stub) is what would establish
   it — and is also the natural place to find out.
 
+## Host contract (locked)
+
+A host adapter's `raycastAtScreenPoint` must return this shape:
+
+```js
+{ hit, objectId, region, point, normal, distance }   // or { hit: false }
+```
+
+| field | meaning |
+|---|---|
+| `hit` | `false` means the ray reached nothing |
+| `objectId` | the picked object's stable id |
+| `region` | `'hull'` \| `'pocket'` \| `null` — which part of the piece was hit |
+| `point` | world-space intersection |
+| `normal` | **local**-space surface normal, or `null` |
+| `distance` | along the ray |
+
+`src/three-adapter.js` derives `region` from `userData.cthRegion` (falling back
+to `userData.region`), or from a `regionOf(object)` function passed to
+`createThreeHostAdapter`. Anything it does not recognise becomes `null` rather
+than being passed through, so a typo cannot satisfy an `accept.region` by
+accident.
+
+### What `accept` may ask for
+
+```js
+accept: { objectId, region, normals, normalTolerance }
+```
+
+- **`objectId`** — a string **or an array of strings**. Any one matching is
+  enough. Each is matched as a **prefix**, so `box_hull` matches
+  `box_hull_80x40x20` and a spec need not know the dimensions baked into an
+  instance name.
+- **`region`** — when set, `hit.region` must equal it **exactly**. A host that
+  reports no region cannot satisfy a spec that demands one; otherwise an
+  adapter that simply stopped emitting `region` would silently pass every
+  regioned aim instead of failing loudly.
+- **`normals` / `normalTolerance`** — see below.
+
+Each constraint is independent, and all of them that are present must hold.
+
+Region is what does the real work when aims share part ids. In
+`specs/nest-plate-first-batch.js` all four aims accept the same two ids, and
+only `region` separates the pocket floor from the hull around it — an
+id-prefix match alone would pass a pocket pick on a hull aim.
+
+`replay/grade-check.js` locks these rules against a table, since a fixture
+replay can only grade what the demo scene happens to raycast and cannot express
+an arbitrary objectId/region pair.
+
 ## Making a test spec
 
 ```js
@@ -179,6 +296,9 @@ Deliberately not addressed, recorded here so they aren't silently forgotten:
   accept:  { objectId: 'cubeA', normals: [[0,1,0]] }
 }
 ```
+
+`accept.objectId` may also be an array, and is prefix-matched; `accept.region`
+pins which part of the piece counts. See **Host contract (locked)** above.
 
 ### `accept.normalTolerance` (optional)
 

@@ -10,7 +10,8 @@
  * --------------
  * host.placeMarker(target)         -> show a visual target for the test, however the host wants
  * host.clearMarker()               -> hide it
- * host.raycastAtScreenPoint(pt)    -> { hit:boolean, objectId, point:{x,y,z}, normal:{x,y,z}, distance } | { hit:false }
+ * host.raycastAtScreenPoint(pt)    -> { hit:boolean, objectId, region, point:{x,y,z}, normal:{x,y,z}, distance } | { hit:false }
+ *                                     region is 'hull' | 'pocket' | null
  * host.getCameraState()            -> any serializable object; opaque to the harness, used for logging/replay
  * host.setCameraState(state)       -> optional, only required for headless replay mode
  * host.onPointerCapture(el, cb)    -> optional; if omitted, the harness attaches its own listeners to `container`
@@ -20,15 +21,33 @@
  * {
  *   id, title, instruction,
  *   target: { objectId, kind: 'face'|'edge'|'occlusion'|'placement', normal?: [x,y,z], worldPoint?: [x,y,z] },
- *   accept: { objectId, normals?: [[x,y,z], ...], normalTolerance?: number }
+ *   accept: { objectId, region?, normals?: [[x,y,z], ...], normalTolerance?: number }
  *           // optional, defaults derived from target.
+ *           // objectId may be a string or string[]; each is matched as a
+ *           //   prefix, so box_hull matches box_hull_80x40x20.
+ *           // region, when set, must equal hit.region exactly.
  *           // normalTolerance defaults to 0.95 — see src/grade.js
  * }
  */
 
 import { gradeHit } from './grade.js';
+import { createPointerCapture } from './pointer-capture.js';
 
-export function createClickTestHarness({ container, host, tests, onResult, onComplete }) {
+export function createClickTestHarness({
+  container,
+  host,
+  tests,
+  onResult,
+  onComplete,
+  onDragIgnored,
+  // 'listen'  (default) attach ordinary bubble-phase listeners. Fine when the
+  //           harness is the only thing reading pointer input on the canvas.
+  // 'capture' take the gesture away from the host's own move/orbit tooling —
+  //           required when a host drag handler would otherwise swallow the
+  //           pick. Starts DISARMED so the tester can still orbit; call
+  //           armOnce() to claim the next gesture. See src/pointer-capture.js.
+  pointerMode = 'listen',
+}) {
   if (!container) throw new Error('createClickTestHarness: container is required');
   if (!host) throw new Error('createClickTestHarness: host adapter is required');
   if (!Array.isArray(tests) || tests.length === 0) throw new Error('createClickTestHarness: tests[] is required');
@@ -38,6 +57,7 @@ export function createClickTestHarness({ container, host, tests, onResult, onCom
   let dragStart = null;
   let dragged = false;
   let completed = false;
+  let capture = null;
   const results = [];
 
   function currentTest() { return tests[current]; }
@@ -72,6 +92,14 @@ export function createClickTestHarness({ container, host, tests, onResult, onCom
       if (!dragged) handleClick(clientX(e), clientY(e));
       dragStart = null;
     };
+    if (pointerMode === 'capture') {
+      capture = createPointerCapture({
+        container,
+        onClick: (x, y) => handleClick(x, y),
+        onDrag: () => { if (onDragIgnored) onDragIgnored(); },
+      });
+      return;
+    }
     if (host.onPointerCapture) {
       host.onPointerCapture(container, { down, move, up });
     } else {
@@ -107,6 +135,7 @@ export function createClickTestHarness({ container, host, tests, onResult, onCom
       clickScreen: point,
       hit: hit && hit.hit ? {
         objectId: hit.objectId,
+        region: hit.region ?? null,
         point: hit.point,
         normal: hit.normal,
         distance: hit.distance,
@@ -184,6 +213,13 @@ export function createClickTestHarness({ container, host, tests, onResult, onCom
     start,
     skip,
     restart,
+    // Only meaningful in pointerMode:'capture'. No-ops otherwise, so a caller
+    // can wire an "Arm pick" control without branching on the mode.
+    armOnce: () => { if (capture) capture.armOnce(); },
+    arm: () => { if (capture) capture.arm(); },
+    disarm: () => { if (capture) capture.disarm(); },
+    isArmed: () => (capture ? capture.isArmed() : false),
+    dispose: () => { if (capture) capture.dispose(); },
     getResults: () => results.slice(),
     getSummary: summarize,
     get currentIndex() { return current; },
