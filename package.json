@@ -7,13 +7,16 @@
   "exports": {
     ".": "./src/harness.js",
     "./three-adapter": "./src/three-adapter.js",
-    "./issue-button": "./src/issue-button.js"
+    "./issue-button": "./src/issue-button.js",
+    "./nest-drive": "./driver/nest-paint-soften-drive.js",
+    "./nest-status-grade": "./driver/nest-status-grade.js"
   },
   "scripts": {
     "demo": "serve . -l 5174",
     "record": "node replay/record.js",
     "replay": "node replay/replay.js",
-    "self-test": "node replay/self-test.js"
+    "self-test": "node replay/self-test.js",
+    "test:drive-grade": "node driver/nest-status-grade.test.js"
   },
   "dependencies": {},
   "devDependencies": {

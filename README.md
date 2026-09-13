@@ -19,7 +19,19 @@ replay/replay.js         -- Tier 2: headless CI replay via Playwright.
 replay/self-test.js      -- serves the demo, then runs record + replay against it.
 replay/github-issues.js  -- Tier 2: auto-files/comments on issues, with dedupe.
 demo/index.html          -- worked example wiring all of the above together.
+
+driver/                  -- Tier 3: drives a host app's OWN buttons and
+                            functions, and grades what the app reports. No
+                            human click, no synthetic canvas click. See
+                            driver/README.md.
 ```
+
+Tiers 1 and 2 both end at the raycast: they ask "what would this click hit?".
+`driver/` is for the question after that one — "and did pressing the tool on
+that face actually do anything?" — which only the app itself can answer, in
+the status line it writes. The first driver
+(`driver/nest-paint-soften-drive.js`) presses Nest's Paint and Soften and
+grades the bake text.
 
 ### The "listener" — what it's actually for
 
